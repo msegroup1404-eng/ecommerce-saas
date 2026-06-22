@@ -1,0 +1,107 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+plugin policy {
+  provider = '@zenstackhq/plugin-policy'
+}
+
+// ── Auth context (from Medusa JWT, no DB table) ────────────────────
+type Auth {
+  medusaStoreId String @id
+  @@auth
+}
+
+// ── Typed JSON shapes — these replace your hand-written Zod schemas ─
+type SeoRobots {
+  index  Boolean?
+  follow Boolean?
+}
+
+type SeoOpenGraph {
+  site_name String?
+  type      String?
+  image_url String? @url
+}
+
+type SeoTwitter {
+  card String?  // 'summary' | 'summary_large_image'
+  site String?
+}
+
+type StoreSeoConfig {
+  title_template       String?
+  default_title        String?
+  default_description  String?
+  default_image_url    String? @url
+  canonical_url        String? @url
+  robots               SeoRobots?    @json
+  open_graph           SeoOpenGraph? @json
+  twitter              SeoTwitter?   @json
+}
+
+type StoreSocialLinks {
+  instagram String? @url
+  x         String? @url
+  facebook  String? @url
+  linkedin  String? @url
+  youtube   String? @url
+  tiktok    String? @url
+}
+
+type StoreMarketingConfig {
+  google_analytics_id   String?
+  google_tag_manager_id String?
+  meta_pixel_id         String?
+  tiktok_pixel_id       String?
+  newsletter_provider   String?
+  social_links          StoreSocialLinks? @json
+}
+
+// ── Enums ──────────────────────────────────────────────────────────
+enum SubscriptionStatus {
+  PENDING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  TRIALING
+}
+
+// ── Model ──────────────────────────────────────────────────────────
+model StoreConfig {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  medusaStoreId String @map("medusa_store_id")
+
+  title       String
+  handle      String @unique
+  domain      String
+  description String @default("")
+
+  logoUrl    String? @map("logo_url") @url
+  logoAlt    String? @map("logo_alt")
+  faviconUrl String? @map("favicon_url") @url
+
+  theme          String @default("default")
+  themeOverrides Json   @default("{}") @map("theme_overrides")
+
+  homepageLayout  Json @default("{}") @map("homepage_layout")
+  aboutPageLayout Json @default("{}") @map("about_page_layout")
+
+  // Typed JSON — ZenStack generates Zod for these automatically
+  seoConfig       StoreSeoConfig?       @json @map("seo_config")
+  marketingConfig StoreMarketingConfig? @json @map("marketing_config")
+
+  config                Json @default("{}") 
+  paymentConfigs        Json @default("{}") @map("payment_configs")
+  shippingMethodConfigs Json @default("{}") @map("shipping_method_configs")
+
+  subscriptionProductId String?            @unique @map("subscription_product_id")
+  subscriptionStatus    SubscriptionStatus @default(PENDING) @map("subscription_status")
+
+  @@allow('all', auth().medusaStoreId == medusaStoreId)
+  @@map("store_config")
+}
